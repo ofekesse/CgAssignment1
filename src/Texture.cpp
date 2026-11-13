@@ -42,6 +42,33 @@ Texture::Texture(const std::string& filepath)
     }
 }
 
+Texture::Texture(const unsigned char* data, int width, int height, int channels)
+    : m_RendererID(0), m_Filepath(""), m_LocalBuffer(nullptr), m_Width(width), m_Height(height), m_Components(channels)
+{
+    GLCall(glGenTextures(1, &m_RendererID));
+    GLCall(glBindTexture(GL_TEXTURE_2D, m_RendererID));
+
+    GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+    GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+
+    GLCall(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
+    if (channels == 1)
+    {
+        // Single channel: replicate red into RGB so it displays as gray
+        GLCall(glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, data));
+        GLint swizzle[] = { GL_RED, GL_RED, GL_RED, GL_ONE };
+        GLCall(glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzle));
+    }
+    else
+    {
+        GLCall(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data));
+    }
+
+    GLCall(glBindTexture(GL_TEXTURE_2D, 0));
+}
+
 Texture::~Texture()
 {
     GLCall(glDeleteTextures(1, &m_RendererID));

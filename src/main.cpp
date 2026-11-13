@@ -11,6 +11,7 @@
 #include <Shader.h>
 #include <Texture.h>
 #include <Camera.h>
+#include <ImageProcessing.h>
 
 #include <iostream>
 
@@ -24,10 +25,10 @@ const float far = 100.0f;
 /* Shape vertices coordinates with positions, colors, and corrected texCoords */
 float vertices[] = {
     // positions            // colors            // texCoords
-    -0.5f, -0.5f,  0.5f,    1.0f, 0.0f, 0.0f,    0.0f, 0.0f,  // Bottom-left
-     0.5f, -0.5f,  0.5f,    0.0f, 1.0f, 0.0f,    1.0f, 0.0f,  // Bottom-right
-     0.5f,  0.5f,  0.5f,    0.0f, 0.0f, 1.0f,    1.0f, 1.0f,  // Top-right
-    -0.5f,  0.5f,  0.5f,    1.0f, 1.0f, 0.0f,    0.0f, 1.0f,  // Top-left
+    -0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f,    0.0f, 1.0f,  // Bottom-left
+     0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f,    1.0f, 1.0f,  // Bottom-right
+     0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f,    1.0f, 0.0f,  // Top-right
+    -0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f,    0.0f, 0.0f,  // Top-left
 };
 
 /* Indices for vertices order */
@@ -89,8 +90,19 @@ int main(int argc, char* argv[])
         va.AddBuffer(vb, layout);
 
         /* Create texture */
-        Texture texture("res/textures/white.png");
-        texture.Bind();
+        /* Step 1: Grayscale (CPU) -> Grayscale.png / Grayscale.txt (written to the working directory) */
+        Image rgba;
+        if (!ImageProcessing::LoadRGBA("res/textures/Lenna.png", rgba))
+        {
+            glfwTerminate();
+            return -1;
+        }
+        Image gray = ImageProcessing::ToGrayscale(rgba);
+        ImageProcessing::SavePNG("Grayscale.png", gray);
+        ImageProcessing::SaveTxt("Grayscale.txt", gray);
+
+        /* Textures for the 2x2 grid: [0]=Grayscale (TL), [1]=Canny (TR), [2]=Halftone (BL), [3]=Floyd-Steinberg (BR) */
+        Texture grayTexture(gray.data.data(), gray.width, gray.height, 1);
          
         /* Create shaders */
         Shader shader("res/shaders/basic.shader");
@@ -122,25 +134,30 @@ int main(int argc, char* argv[])
             /* Initialize uniform color */
             glm::vec4 color = glm::vec4(1.0, 1.0f, 1.0f, 1.0f);
 
-             /* Initialize the model Translate, Rotate and Scale matrices */
-            glm::mat4 trans = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -1.0f));
-            glm::mat4 rot = glm::rotate(glm::mat4(1.0f), 0.0f, glm::vec3(1.0f));
-            glm::mat4 scl = glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
-
-            /* Initialize the MVP matrices */ 
-            glm::mat4 model = trans * rot * scl;
+            /* Initialize the view and projection matrices (the model matrix is built per quadrant below) */
             glm::mat4 view = camera.GetViewMatrix();
             glm::mat4 proj = camera.GetProjectionMatrix();
-            glm::mat4 mvp = proj * view * model;
 
             /* Update shaders paramters and draw to the screen */
             shader.Bind();
             shader.SetUniform4f("u_Color", color);
-            shader.SetUniformMat4f("u_MVP", mvp);
             shader.SetUniform1i("u_Texture", 0);
             va.Bind();
             ib.Bind();
-            GLCall(glDrawElements(GL_TRIANGLES, ib.GetCount(), GL_UNSIGNED_INT, nullptr));
+
+            /* 2x2 grid: the camera is ortho [-1,1], the quad is 1x1, so each quadrant is a quad centered at (+-0.5, +-0.5).
+               Currently only the top-left (Grayscale) is drawn. */
+            struct Cell { float x, y; const Texture* tex; };
+            Cell cells[] = {
+                { -0.5f,  0.5f, &grayTexture },  // top-left: Grayscale
+            };
+            for (const Cell& cell : cells)
+            {
+                glm::mat4 cellModel = glm::translate(glm::mat4(1.0f), glm::vec3(cell.x, cell.y, -1.0f));
+                shader.SetUniformMat4f("u_MVP", proj * view * cellModel);
+                cell.tex->Bind(0);
+                GLCall(glDrawElements(GL_TRIANGLES, ib.GetCount(), GL_UNSIGNED_INT, nullptr));
+            }
 
             /* Swap front and back buffers */
             glfwSwapBuffers(window);
