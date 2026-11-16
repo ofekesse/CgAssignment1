@@ -232,4 +232,55 @@ namespace ImageProcessing
         }
         return out;
     }
+
+    Image FloydSteinberg(const Image& gray)
+    {
+        const int W = gray.width, H = gray.height;
+
+        // Working copy in float: diffused errors are fractional and can push a value outside 0..255
+        std::vector<float> work(gray.data.begin(), gray.data.end());
+
+        Image out;
+        out.width = W;
+        out.height = H;
+        out.channels = 1;
+        out.data.resize((size_t)W * H);
+
+        for (int y = 0; y < H; ++y)
+            for (int x = 0; x < W; ++x)
+            {
+                size_t i = (size_t)y * W + x;
+                float oldVal = std::clamp(work[i], 0.0f, 255.0f);
+
+                // Quantize to the nearest of 16 levels (0..15), displayed as level * 17 (0..255)
+                int level = (int)(oldVal / 17.0f + 0.5f);
+                float newVal = level * 17.0f;
+                out.data[i] = (unsigned char)newVal;
+
+                float err = oldVal - newVal;
+
+                // Neighbours that receive the error: right (7/16), below-left (3/16), below (5/16), below-right (1/16)
+                struct N { int dx, dy; float w; };
+                const N all[4] = { { 1, 0, 7.0f / 16 }, { -1, 1, 3.0f / 16 }, { 0, 1, 5.0f / 16 }, { 1, 1, 1.0f / 16 } };
+
+                bool avail[4];
+                int count = 0;
+                for (int n = 0; n < 4; ++n)
+                {
+                    int nx = x + all[n].dx, ny = y + all[n].dy;
+                    avail[n] = nx >= 0 && nx < W && ny < H;
+                    if (avail[n]) ++count;
+                }
+                if (count == 0) continue;   // bottom-right corner: nowhere to diffuse
+
+                for (int n = 0; n < 4; ++n)
+                {
+                    if (!avail[n]) continue;
+                    // Full neighbourhood: standard weights. Missing neighbours (image edges): split equally.
+                    float share = (count == 4) ? all[n].w : 1.0f / count;
+                    work[(size_t)(y + all[n].dy) * W + (x + all[n].dx)] += err * share;
+                }
+            }
+        return out;
+    }
 }
