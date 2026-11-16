@@ -22,8 +22,12 @@ namespace ImageProcessing
 
     /* Canny edge detection on a grayscale image. Output: 1 channel, each pixel 0 or 255.
        Stages: Gaussian filter -> Sobel gradient -> non-max suppression -> double threshold -> hysteresis. */
-    Image Canny(const Image& gray, float lowRatio = 0.05f, float highRatio = 0.15f,
+    Image Canny(const Image& gray, float lowRatio = 0.20f, float highRatio = 0.26f,
                  int blurRadius = 2, float sigma = 1.4f);  // radius 2 = 5x5 kernel, radius 1 = 3x3
+
+    /* Halftone: every gray pixel becomes a 2x2 black/white block (output is 2x wider and 2x taller,
+       i.e. 4x the pixels). Output: 1 channel, each pixel 0 or 255. */
+    Image Halftone(const Image& gray);
 
     /* Writes a 1- or 4-channel image as PNG. */
     bool SavePNG(const std::string& path, const Image& img);

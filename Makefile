@@ -69,4 +69,14 @@ copy_res_l:
 	mkdir -p ${workspaceFolder}/bin/res && cp -rf ${workspaceFolder}/src/res/* ${workspaceFolder}/bin/res
 
 # Parallel build (add -jN option to run with N jobs)
-.PHONY: all copy_res_m copy_res_w
+.PHONY: all copy_res_m copy_res_w clean
+
+# Remove everything generated inside bin/ (objects, binary, copied res, output pngs/txts) but keep bin/.keep.
+# Usage: make clean && make   (or: make clean all)
+clean:
+ifeq ($(OS),Windows_NT)
+	-cmd /c del /Q ${workspaceFolder}\bin\*.o ${workspaceFolder}\bin\main.exe ${workspaceFolder}\bin\*.png ${workspaceFolder}\bin\*.txt
+	-cmd /c rmdir /S /Q ${workspaceFolder}\bin\res
+else
+	find ${workspaceFolder}/bin -mindepth 1 ! -name .keep -delete
+endif

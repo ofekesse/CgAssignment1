@@ -201,4 +201,35 @@ namespace ImageProcessing
         for (size_t i = 0; i < N; ++i) out.data[i] = (cls[i] == 2) ? 255 : 0;
         return out;
     }
+
+    Image Halftone(const Image& gray)
+    {
+        const int W = gray.width, H = gray.height;
+
+        Image out;
+        out.width = W * 2;
+        out.height = H * 2;
+        out.channels = 1;
+        out.data.assign((size_t)out.width * out.height, 0); // initialize a 512x512 output image with all black pixels (0)
+
+        // Dot order inside the 2x2 block: level L turns on every cell whose rank is < L
+        //   rank: [0 2]   level 1 -> TL, level 2 -> TL+BR, level 3 -> TL+BR+TR, level 4 -> all four
+        //         [3 1]
+        const int rank[2][2] = { { 0, 2 }, { 3, 1 } };
+
+        for (int y = 0; y < H; ++y)          // each input row fills TWO output rows (2y and 2y+1)
+        {
+            unsigned char* top = &out.data[(size_t)(2 * y) * out.width];
+            unsigned char* bottom = top + out.width;
+            for (int x = 0; x < W; ++x)
+            {
+                int level = gray.data[(size_t)y * W + x] * 5 / 256;   // 0..4 (five gray levels)
+                top[2 * x]        = level > rank[0][0] ? 255 : 0; // top-left
+                top[2 * x + 1]    = level > rank[0][1] ? 255 : 0; // top-right
+                bottom[2 * x]     = level > rank[1][0] ? 255 : 0; // bottom-left
+                bottom[2 * x + 1] = level > rank[1][1] ? 255 : 0; // bottom-right
+            }
+        }
+        return out;
+    }
 }
