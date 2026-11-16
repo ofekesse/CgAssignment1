@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
         va.AddBuffer(vb, layout);
 
         /* Create texture */
-        /* Step 1: Grayscale (CPU) -> Grayscale.png / Grayscale.txt (written to the working directory) */
+        /* Task 1: Grayscale (CPU) -> Grayscale.png / Grayscale.txt (written to /bin directory) */
         Image rgba;
         if (!ImageProcessing::LoadRGBA("res/textures/Lenna.png", rgba))
         {
@@ -101,8 +101,15 @@ int main(int argc, char* argv[])
         ImageProcessing::SavePNG("Grayscale.png", gray);
         ImageProcessing::SaveTxt("Grayscale.txt", gray);
 
+        /* Task 2: Canny edge detection -> Canny.png / Canny.txt */
+        /* To switch to 3X3 gaussian filter we'll change to ImageProcessing::Canny(gray, 0.05f, 0.15f, 1, 1.0f) */
+        Image canny = ImageProcessing::Canny(gray); 
+        ImageProcessing::SavePNG("Canny.png", canny);
+        ImageProcessing::SaveBinaryTxt("Canny.txt", canny);
+
         /* Textures for the 2x2 grid: [0]=Grayscale (TL), [1]=Canny (TR), [2]=Halftone (BL), [3]=Floyd-Steinberg (BR) */
         Texture grayTexture(gray.data.data(), gray.width, gray.height, 1);
+        Texture cannyTexture(canny.data.data(), canny.width, canny.height, 1);
          
         /* Create shaders */
         Shader shader("res/shaders/basic.shader");
@@ -146,10 +153,11 @@ int main(int argc, char* argv[])
             ib.Bind();
 
             /* 2x2 grid: the camera is ortho [-1,1], the quad is 1x1, so each quadrant is a quad centered at (+-0.5, +-0.5).
-               Currently only the top-left (Grayscale) is drawn. */
+               Currently Grayscale (top-left) and Canny (top-right) are drawn. */
             struct Cell { float x, y; const Texture* tex; };
             Cell cells[] = {
-                { -0.5f,  0.5f, &grayTexture },  // top-left: Grayscale
+                { -0.5f,  0.5f, &grayTexture },   // top-left: Grayscale
+                {  0.5f,  0.5f, &cannyTexture },  // top-right: Canny
             };
             for (const Cell& cell : cells)
             {

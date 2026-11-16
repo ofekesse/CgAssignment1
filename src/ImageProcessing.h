@@ -20,8 +20,16 @@ namespace ImageProcessing
     /* RGBA -> single channel 8-bit grayscale, weighted luminance, clamped to [0,255]. */
     Image ToGrayscale(const Image& rgba);
 
+    /* Canny edge detection on a grayscale image. Output: 1 channel, each pixel 0 or 255.
+       Stages: Gaussian filter -> Sobel gradient -> non-max suppression -> double threshold -> hysteresis. */
+    Image Canny(const Image& gray, float lowRatio = 0.05f, float highRatio = 0.15f,
+                 int blurRadius = 2, float sigma = 1.4f);  // radius 2 = 5x5 kernel, radius 1 = 3x3
+
     /* Writes a 1- or 4-channel image as PNG. */
     bool SavePNG(const std::string& path, const Image& img);
+
+    /* Writes a binary (0/255) image as comma-separated (no spaces) 0/1 values. */
+    bool SaveBinaryTxt(const std::string& path, const Image& bw);
 
     /* Writes a single channel image as comma-separated (no spaces) values in 0..15 (value / 16). */
     bool SaveTxt(const std::string& path, const Image& gray);
