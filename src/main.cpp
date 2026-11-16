@@ -102,14 +102,20 @@ int main(int argc, char* argv[])
         ImageProcessing::SaveTxt("Grayscale.txt", gray);
 
         /* Task 2: Canny edge detection -> Canny.png / Canny.txt */
-        /* To switch to 3X3 gaussian filter we'll change to ImageProcessing::Canny(gray, 0.05f, 0.15f, 1, 1.0f) */
+        /* To switch to 3X3 gaussian filter we'll change to ImageProcessing::Canny(gray, lowRatio, highRatio, 1, sigma) */
         Image canny = ImageProcessing::Canny(gray); 
         ImageProcessing::SavePNG("Canny.png", canny);
         ImageProcessing::SaveBinaryTxt("Canny.txt", canny);
 
+        /* Task 3: Halftone -> Halftone.png / Halftone.txt */
+        Image halftone = ImageProcessing::Halftone(gray);
+        ImageProcessing::SavePNG("Halftone.png", halftone);
+        ImageProcessing::SaveBinaryTxt("Halftone.txt", halftone);
+
         /* Textures for the 2x2 grid: [0]=Grayscale (TL), [1]=Canny (TR), [2]=Halftone (BL), [3]=Floyd-Steinberg (BR) */
         Texture grayTexture(gray.data.data(), gray.width, gray.height, 1);
         Texture cannyTexture(canny.data.data(), canny.width, canny.height, 1);
+        Texture halftoneTexture(halftone.data.data(), halftone.width, halftone.height, 1);
          
         /* Create shaders */
         Shader shader("res/shaders/basic.shader");
@@ -153,11 +159,12 @@ int main(int argc, char* argv[])
             ib.Bind();
 
             /* 2x2 grid: the camera is ortho [-1,1], the quad is 1x1, so each quadrant is a quad centered at (+-0.5, +-0.5).
-               Currently Grayscale (top-left) and Canny (top-right) are drawn. */
+               Currently Grayscale, Canny and Halftone are drawn. */
             struct Cell { float x, y; const Texture* tex; };
             Cell cells[] = {
                 { -0.5f,  0.5f, &grayTexture },   // top-left: Grayscale
                 {  0.5f,  0.5f, &cannyTexture },  // top-right: Canny
+                { -0.5f, -0.5f, &halftoneTexture }, // bottom-left: Halftone
             };
             for (const Cell& cell : cells)
             {
