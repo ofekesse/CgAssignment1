@@ -29,6 +29,10 @@ namespace ImageProcessing
        i.e. 4x the pixels). Output: 1 channel, each pixel 0 or 255. */
     Image Halftone(const Image& gray);
 
+    /* Floyd-Steinberg error diffusion: 256 gray levels -> 16 levels. Output: 1 channel, values
+       are level * 17 (0, 17, ..., 255) so it displays correctly and SaveTxt gives 0..15. */
+    Image FloydSteinberg(const Image& gray);
+
     /* Writes a 1- or 4-channel image as PNG. */
     bool SavePNG(const std::string& path, const Image& img);
 

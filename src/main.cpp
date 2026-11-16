@@ -112,10 +112,16 @@ int main(int argc, char* argv[])
         ImageProcessing::SavePNG("Halftone.png", halftone);
         ImageProcessing::SaveBinaryTxt("Halftone.txt", halftone);
 
+        /* Task 4: Floyd-Steinberg (16 gray levels) -> FloyedSteinberg.png / FloyedSteinberg.txt */
+        Image fs = ImageProcessing::FloydSteinberg(gray);
+        ImageProcessing::SavePNG("FloyedSteinberg.png", fs);
+        ImageProcessing::SaveTxt("FloyedSteinberg.txt", fs);   // value / 16 -> 0..15
+
         /* Textures for the 2x2 grid: [0]=Grayscale (TL), [1]=Canny (TR), [2]=Halftone (BL), [3]=Floyd-Steinberg (BR) */
         Texture grayTexture(gray.data.data(), gray.width, gray.height, 1);
         Texture cannyTexture(canny.data.data(), canny.width, canny.height, 1);
         Texture halftoneTexture(halftone.data.data(), halftone.width, halftone.height, 1);
+        Texture fsTexture(fs.data.data(), fs.width, fs.height, 1);
          
         /* Create shaders */
         Shader shader("res/shaders/basic.shader");
@@ -159,12 +165,13 @@ int main(int argc, char* argv[])
             ib.Bind();
 
             /* 2x2 grid: the camera is ortho [-1,1], the quad is 1x1, so each quadrant is a quad centered at (+-0.5, +-0.5).
-               Currently Grayscale, Canny and Halftone are drawn. */
+               All four outputs are drawn. */
             struct Cell { float x, y; const Texture* tex; };
             Cell cells[] = {
                 { -0.5f,  0.5f, &grayTexture },   // top-left: Grayscale
                 {  0.5f,  0.5f, &cannyTexture },  // top-right: Canny
                 { -0.5f, -0.5f, &halftoneTexture }, // bottom-left: Halftone
+                {  0.5f, -0.5f, &fsTexture },     // bottom-right: Floyd-Steinberg
             };
             for (const Cell& cell : cells)
             {
