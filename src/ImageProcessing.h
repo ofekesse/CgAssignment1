@@ -20,10 +20,20 @@ namespace ImageProcessing
     /* RGBA -> single channel 8-bit grayscale, weighted luminance, clamped to [0,255]. */
     Image ToGrayscale(const Image& rgba);
 
+    /* Optional debug output of Canny: the image after each stage (all 1 channel, 0..255). */
+    struct CannyStages
+    {
+        Image gradient;     // 1. gradient magnitude, normalized to 0..255
+        Image nms;          // 2. after non-maximum suppression, same normalization
+        Image threshold;    // 3. double threshold: 0 = none, 128 = weak, 255 = strong
+        Image hysteresis;   // 4. after hysteresis (the final result)
+    };
+
     /* Canny edge detection on a grayscale image. Output: 1 channel, each pixel 0 or 255.
        Stages: Gaussian filter -> Sobel gradient -> non-max suppression -> double threshold -> hysteresis. */
     Image Canny(const Image& gray, float lowRatio = 0.20f, float highRatio = 0.26f,
-                 int blurRadius = 2, float sigma = 1.4f);  // radius 2 = 5x5 kernel, radius 1 = 3x3
+                 int blurRadius = 2, float sigma = 1.4f,
+                 CannyStages* stages = nullptr);  // if not null, filled with the 4 stage images; radius 2 = 5x5 kernel, radius 1 = 3x3
 
     /* Halftone: every gray pixel becomes a 2x2 black/white block (output is 2x wider and 2x taller,
        i.e. 4x the pixels). Output: 1 channel, each pixel 0 or 255. */

@@ -89,11 +89,13 @@ namespace ImageProcessing
         return true;
     }
 
-    Image Canny(const Image& gray, float lowRatio, float highRatio, int blurRadius, float sigma)
+    Image Canny(const Image& gray, float lowRatio, float highRatio, int blurRadius, float sigma,
+                 CannyStages* stages)
     {
         const int W = gray.width, H = gray.height;
         const size_t N = (size_t)W * H;
         auto clampi = [](int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); };
+        auto makeImage = [&]() { Image im; im.width = W; im.height = H; im.channels = 1; im.data.resize(N); return im; };
 
         // ---- 1. Noise reduction: separable 5x5 OR 3x3 Gaussian (sigma = 1.4) ----
         /* Building the Gaussian kernel */
@@ -153,6 +155,13 @@ namespace ImageProcessing
                 dir[(size_t)y * W + x] = d;
             }
 
+        if (stages)   // debug: stage 1 image, magnitude scaled so the strongest edge is 255
+        {
+            stages->gradient = makeImage();
+            for (size_t i = 0; i < N; ++i)
+                stages->gradient.data[i] = (unsigned char)std::clamp(mag[i] / maxMag * 255.0f + 0.5f, 0.0f, 255.0f);
+        }
+
         // ---- 3. Non-maximum suppression: keep only local maxima along the gradient direction ----
         std::vector<float> nms(N, 0.0f);
         const int dx[4] = { 1, 1, 0, -1 };   // neighbour offset along the gradient, per direction
@@ -167,6 +176,13 @@ namespace ImageProcessing
                     nms[(size_t)y * W + x] = m;
             }
 
+        if (stages)   // debug: stage 2 image
+        {
+            stages->nms = makeImage();
+            for (size_t i = 0; i < N; ++i)
+                stages->nms.data[i] = (unsigned char)std::clamp(nms[i] / maxMag * 255.0f + 0.5f, 0.0f, 255.0f);
+        }
+
         // ---- 4. Double threshold: 0 = none, 1 = weak, 2 = strong ----
         const float high = highRatio * maxMag, low = lowRatio * maxMag; // The high and low thresholds are computed as a fraction of the maximum magnitude found in the previous step
         std::vector<unsigned char> cls(N, 0);
@@ -175,6 +191,13 @@ namespace ImageProcessing
         {
             if (nms[i] >= high) { cls[i] = 2; stack.push_back(i); }
             else if (nms[i] >= low) cls[i] = 1;
+        }
+
+        if (stages)   // debug: stage 3 image (weak = gray, strong = white)
+        {
+            stages->threshold = makeImage();
+            for (size_t i = 0; i < N; ++i)
+                stages->threshold.data[i] = cls[i] == 2 ? 255 : (cls[i] == 1 ? 128 : 0);
         }
 
         // ---- 5. Hysteresis: weak pixels survive only if connected (8-neighbourhood) to a strong one ----
@@ -199,6 +222,7 @@ namespace ImageProcessing
         out.channels = 1;
         out.data.resize(N);
         for (size_t i = 0; i < N; ++i) out.data[i] = (cls[i] == 2) ? 255 : 0;
+        if (stages) stages->hysteresis = out;   // debug: stage 4 image
         return out;
     }
 
