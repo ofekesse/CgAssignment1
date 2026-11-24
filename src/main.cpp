@@ -14,6 +14,8 @@
 #include <ImageProcessing.h>
 
 #include <iostream>
+#include <memory>
+#include <string>
 
 /* Window size */
 const unsigned int width = 800;
@@ -89,8 +91,12 @@ int main(int argc, char* argv[])
         layout.Push<float>(2);  // texCoords
         va.AddBuffer(vb, layout);
 
-        /* Create texture */
-        /* Task 1: Grayscale (CPU) -> Grayscale.png / Grayscale.txt (written to /bin directory) */
+        /* Debug mode: ./main --debug-canny  -> only Canny runs, and its 4 stages are shown in the 2x2 grid:
+           [TL] gradient, [TR] non-max suppression, [BL] double threshold, [BR] hysteresis. No files are written. */
+        bool debugCanny = false;
+        for (int i = 1; i < argc; ++i)
+            if (std::string(argv[i]) == "--debug-canny") debugCanny = true;
+
         Image rgba;
         if (!ImageProcessing::LoadRGBA("res/textures/Lenna.png", rgba))
         {
@@ -98,31 +104,50 @@ int main(int argc, char* argv[])
             return -1;
         }
         Image gray = ImageProcessing::ToGrayscale(rgba);
-        ImageProcessing::SavePNG("Grayscale.png", gray);
-        ImageProcessing::SaveTxt("Grayscale.txt", gray);
 
-        /* Task 2: Canny edge detection -> Canny.png / Canny.txt */
-        /* To switch to 3X3 gaussian filter we'll change to ImageProcessing::Canny(gray, lowRatio, highRatio, 1, sigma) */
-        Image canny = ImageProcessing::Canny(gray); 
-        ImageProcessing::SavePNG("Canny.png", canny);
-        ImageProcessing::SaveBinaryTxt("Canny.txt", canny);
+        /* The four textures of the 2x2 grid: [0]=TL, [1]=TR, [2]=BL, [3]=BR */
+        std::unique_ptr<Texture> tex[4];
 
-        /* Task 3: Halftone -> Halftone.png / Halftone.txt */
-        Image halftone = ImageProcessing::Halftone(gray);
-        ImageProcessing::SavePNG("Halftone.png", halftone);
-        ImageProcessing::SaveBinaryTxt("Halftone.txt", halftone);
+        /* Declared here so the pixel data lives as long as the window (textures only copy it to the GPU) */
+        Image canny, halftone, fs;
+        ImageProcessing::CannyStages stages;
 
-        /* Task 4: Floyd-Steinberg (16 gray levels) -> FloyedSteinberg.png / FloyedSteinberg.txt */
-        Image fs = ImageProcessing::FloydSteinberg(gray);
-        ImageProcessing::SavePNG("FloyedSteinberg.png", fs);
-        ImageProcessing::SaveTxt("FloyedSteinberg.txt", fs);   // value / 16 -> 0..15
+        if (debugCanny)
+        {
+            std::cout << "Debug mode: showing Canny stages (gradient, non-max suppression, double threshold, hysteresis)" << std::endl;
+            ImageProcessing::Canny(gray, 0.05f, 0.15f, 2, 1.4f, &stages);
+            const Image* imgs[4] = { &stages.gradient, &stages.nms, &stages.threshold, &stages.hysteresis };
+            for (int i = 0; i < 4; ++i)
+                tex[i] = std::make_unique<Texture>(imgs[i]->data.data(), imgs[i]->width, imgs[i]->height, 1);
+        }
+        else
+        {
+            /* Task 1: Grayscale (CPU) -> Grayscale.png / Grayscale.txt (written to /bin directory) */
+            ImageProcessing::SavePNG("Grayscale.png", gray);
+            ImageProcessing::SaveTxt("Grayscale.txt", gray);
 
-        /* Textures for the 2x2 grid: [0]=Grayscale (TL), [1]=Canny (TR), [2]=Halftone (BL), [3]=Floyd-Steinberg (BR) */
-        Texture grayTexture(gray.data.data(), gray.width, gray.height, 1);
-        Texture cannyTexture(canny.data.data(), canny.width, canny.height, 1);
-        Texture halftoneTexture(halftone.data.data(), halftone.width, halftone.height, 1);
-        Texture fsTexture(fs.data.data(), fs.width, fs.height, 1);
-         
+            /* Task 2: Canny edge detection -> Canny.png / Canny.txt */
+            /* To switch to 3X3 gaussian filter we'll change to ImageProcessing::Canny(gray, lowRatio, highRatio, 1, sigma) */
+            canny = ImageProcessing::Canny(gray);
+            ImageProcessing::SavePNG("Canny.png", canny);
+            ImageProcessing::SaveBinaryTxt("Canny.txt", canny);
+
+            /* Task 3: Halftone -> Halftone.png / Halftone.txt */
+            halftone = ImageProcessing::Halftone(gray);
+            ImageProcessing::SavePNG("Halftone.png", halftone);
+            ImageProcessing::SaveBinaryTxt("Halftone.txt", halftone);
+
+            /* Task 4: Floyd-Steinberg (16 gray levels) -> FloyedSteinberg.png / FloyedSteinberg.txt */
+            fs = ImageProcessing::FloydSteinberg(gray);
+            ImageProcessing::SavePNG("FloyedSteinberg.png", fs);
+            ImageProcessing::SaveTxt("FloyedSteinberg.txt", fs);   // value / 16 -> 0..15
+
+            /* Grid: Grayscale (TL), Canny (TR), Halftone (BL), Floyd-Steinberg (BR) */
+            const Image* imgs[4] = { &gray, &canny, &halftone, &fs };
+            for (int i = 0; i < 4; ++i)
+                tex[i] = std::make_unique<Texture>(imgs[i]->data.data(), imgs[i]->width, imgs[i]->height, 1);
+        }
+
         /* Create shaders */
         Shader shader("res/shaders/basic.shader");
         shader.Bind();
@@ -168,10 +193,10 @@ int main(int argc, char* argv[])
                All four outputs are drawn. */
             struct Cell { float x, y; const Texture* tex; };
             Cell cells[] = {
-                { -0.5f,  0.5f, &grayTexture },   // top-left: Grayscale
-                {  0.5f,  0.5f, &cannyTexture },  // top-right: Canny
-                { -0.5f, -0.5f, &halftoneTexture }, // bottom-left: Halftone
-                {  0.5f, -0.5f, &fsTexture },     // bottom-right: Floyd-Steinberg
+                { -0.5f,  0.5f, tex[0].get() },   // top-left
+                {  0.5f,  0.5f, tex[1].get() },   // top-right
+                { -0.5f, -0.5f, tex[2].get() },   // bottom-left
+                {  0.5f, -0.5f, tex[3].get() },   // bottom-right
             };
             for (const Cell& cell : cells)
             {
